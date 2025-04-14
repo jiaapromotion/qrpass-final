@@ -104,7 +104,7 @@ app.post('/register', async (req, res) => {
           customer_phone: phone,
         },
         order_meta: {
-          return_url: 'https://qrpass.in/success',
+          return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${phone}`,
         },
       },
       {
@@ -117,7 +117,6 @@ app.post('/register', async (req, res) => {
     );
 
     const paymentLink = orderRes.data.data.payment_link;
-
     res.json({ success: true, link: paymentLink });
   } catch (err) {
     console.error('Cashfree Order Error:', err.response?.data || err.message);
@@ -125,7 +124,7 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Confirm Route (called after payment is done)
+// Confirm Route
 app.post('/confirm', async (req, res) => {
   const { name, email, phone, quantity } = req.body;
 
@@ -140,7 +139,6 @@ app.post('/confirm', async (req, res) => {
     });
 
     await sendWhatsApp(name, phone);
-
     res.json({ success: true });
   } catch (err) {
     console.error('Confirmation error:', err.message);
@@ -153,9 +151,8 @@ app.get('/', (req, res) => {
   res.send('<h1>QRPass Registration</h1>');
 });
 
-// Start server after initializing Cashfree
-initializeCashfree(); // 👈 required before server starts
-
+// Start server
+initializeCashfree(); // Must run before app starts
 app.listen(process.env.PORT || 1000, () => {
   console.log('✅ QRPass Final Server is running...');
 });
