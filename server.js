@@ -15,7 +15,7 @@ app.use(express.static("public"));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Initialize Cashfree token globally
+// Initialize Cashfree token
 let cashfreeToken = null;
 async function initializeCashfree() {
   try {
@@ -36,7 +36,7 @@ async function initializeCashfree() {
   }
 }
 
-// Google Sheet setup
+// Push data to Google Sheet
 async function pushToSheet(name, email, phone, quantity) {
   const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID);
   await doc.useServiceAccountAuth(JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS));
@@ -45,7 +45,7 @@ async function pushToSheet(name, email, phone, quantity) {
   await sheet.addRow({ Name: name, Email: email, Phone: phone, Quantity: quantity });
 }
 
-// Email confirmation
+// Send confirmation email
 async function sendEmail(to, name, quantity) {
   const transporter = nodemailer.createTransport({
     service: "Gmail",
@@ -63,22 +63,24 @@ async function sendEmail(to, name, quantity) {
   });
 }
 
-// Route to handle form submission and create order
+// Route to handle form submission and Cashfree order creation
 app.post("/create-order", async (req, res) => {
   const { name, email, phone, quantity } = req.body;
 
   try {
+    const orderId = "ORD" + Date.now();
+
     // Push to Google Sheet
     await pushToSheet(name, email, phone, quantity);
 
     // Send confirmation email
     await sendEmail(email, name, quantity);
 
-    // Create Cashfree order
+    // Create order in Cashfree
     const orderRes = await axios.post(
       "https://api.cashfree.com/pg/orders",
       {
-        order_id: "ORD" + Date.now(),
+        order_id: orderId,
         order_amount: parseInt(quantity) * 199,
         order_currency: "INR",
         customer_details: {
@@ -87,7 +89,7 @@ app.post("/create-order", async (req, res) => {
           customer_phone: phone,
         },
         order_meta: {
-          return_url: `https://qrpass-final.onrender.com/payment-success?order_id={order_id}`,
+          return_url: `https://qrpass-final.onrender.com/payment-success?order_id=${orderId}`,
         },
       },
       {
@@ -107,7 +109,7 @@ app.post("/create-order", async (req, res) => {
   }
 });
 
-// Confirm server start
+// Start server
 initializeCashfree().then(() => {
   app.listen(port, () => {
     console.log(`✅ QRPass Final Server is running on port ${port}`);
