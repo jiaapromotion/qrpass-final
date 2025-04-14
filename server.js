@@ -20,7 +20,7 @@ async function initializeCashfree() {
     const now = Date.now();
     if (cashfreeToken && now < tokenExpiryTime) return;
 
-    const authResponse = await fetch('https://api.cashfree.com/pg/v1/authenticate', {
+    const authResponse = await fetch('https://api.cashfree.com/pg/authenticate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
