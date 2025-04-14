@@ -54,31 +54,6 @@ async function sendWhatsApp(phone, message) {
   });
 }
 
-// Cashfree Token
-async function getToken() {
-  const res = await fetch('https://api.cashfree.com/pg/orders', {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'x-client-id': CASHFREE_CLIENT_ID,
-      'x-client-secret': CASHFREE_CLIENT_SECRET,
-      'x-api-version': '2022-09-01',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      customer_details: {
-        customer_id: "CUST" + Date.now(),
-        customer_email: "demo@qrpass.in",
-        customer_phone: "9999999999",
-      },
-      order_id: "ORDER" + Date.now(),
-      order_amount: 1,
-      order_currency: "INR",
-    }),
-  });
-  return res.json();
-}
-
 // Register Payment Endpoint
 app.post('/create-payment', async (req, res) => {
   const { name, email, phone, quantity } = req.body;
@@ -103,7 +78,7 @@ app.post('/create-payment', async (req, res) => {
         customer_phone: phone,
       },
       order_meta: {
-        return_url: `https://qrpass-final.onrender.com/payment-success?name=${name}&email=${email}&phone=${phone}&quantity=${quantity}`,
+        return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&quantity=${quantity}`,
       },
     }),
   });
@@ -121,12 +96,14 @@ app.get('/payment-success', async (req, res) => {
   const { name, email, phone, quantity } = req.query;
 
   await addToSheet({ name, email, phone, quantity });
-
   await sendEmail(email, 'QRPass Ticket Confirmation', `Dear ${name},\n\nThanks for registering. Your ${quantity} ticket(s) are confirmed.`);
   await sendWhatsApp(phone, `Hi ${name}, your QRPass registration is confirmed for ${quantity} ticket(s). See you at the event!`);
 
   res.send('<h2>✅ Registration successful after payment.</h2>');
 });
 
-app.get('/', (req, res) => res.send('QRPass API is live.'));
-app.listen(process.env.PORT || 1000, () => console.log('Server running...'));
+// Home Route
+app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
+
+// Start Server
+app.listen(process.env.PORT || 1000, () => console.log('✅ QRPass Final Server is running...'));
