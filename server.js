@@ -1,82 +1,77 @@
-const express = require("express");
-const fetch = require("node-fetch");
-const bodyParser = require("body-parser");
-require("dotenv").config();
+const express = require('express');
+const fetch = require('node-fetch');
+const path = require('path');
+const bodyParser = require('body-parser');
+require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT || 1000;
+
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const CLIENT_ID = process.env.CASHFREE_CLIENT_ID;
-const CLIENT_SECRET = process.env.CASHFREE_CLIENT_SECRET;
-
-const BASE_URL = "https://api.cashfree.com"; // Production
-const TOKEN_URL = `${BASE_URL}/pg/services/v1/token`;
-const ORDER_URL = `${BASE_URL}/pg/orders`;
-
-app.get("/", (req, res) => {
-  res.send("QRPass Final API is live!");
+// Serve index.html at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post("/create-order", async (req, res) => {
+app.post('/create-order', async (req, res) => {
   try {
     const { name, email, phone, quantity } = req.body;
+    const amount = parseInt(quantity) * 19900;
 
-    // Step 1: Get token
-    const tokenResponse = await fetch(TOKEN_URL, {
-      method: "POST",
+    // Step 1: Authenticate to get access token
+    const authResponse = await fetch('https://api.cashfree.com/pg/v1/authenticate', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "x-client-id": CLIENT_ID,
-        "x-client-secret": CLIENT_SECRET,
+        'Content-Type': 'application/json',
+        'x-client-id': process.env.CASHFREE_CLIENT_ID,
+        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
       },
     });
 
-    const tokenData = await tokenResponse.json();
-
-    if (!tokenData || !tokenData.data || !tokenData.data.token) {
-      console.error("Token response error:", tokenData);
-      return res.status(500).json({ error: "Failed to get token" });
+    const authData = await authResponse.json();
+    if (!authData || !authData.data || !authData.data.token) {
+      console.error('Auth failed:', authData);
+      return res.status(500).json({ error: 'Auth failed', details: authData });
     }
 
-    const token = tokenData.data.token;
+    const token = authData.data.token;
 
     // Step 2: Create order
-    const orderPayload = {
-      customer_details: {
-        customer_id: phone,
-        customer_email: email,
-        customer_phone: phone,
-      },
-      order_id: `QRPASS_${Date.now()}`,
-      order_amount: 199 * Number(quantity),
-      order_currency: "INR",
-      order_note: `QRPass Ticket for ${name}`,
-    };
-
-    const orderResponse = await fetch(ORDER_URL, {
-      method: "POST",
+    const orderResponse = await fetch('https://api.cashfree.com/pg/orders', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'x-api-version': '2022-09-01'
       },
-      body: JSON.stringify(orderPayload),
+      body: JSON.stringify({
+        order_amount: amount / 100,
+        order_currency: 'INR',
+        customer_details: {
+          customer_id: Date.now().toString(),
+          customer_email: email,
+          customer_phone: phone,
+          customer_name: name
+        }
+      })
     });
 
     const orderData = await orderResponse.json();
-
     if (!orderData || !orderData.payment_link) {
-      console.error("Order response error:", orderData);
-      return res.status(500).json({ error: "Failed to create order" });
+      console.error('Order creation failed:', orderData);
+      return res.status(500).json({ error: 'Order creation failed', details: orderData });
     }
 
-    res.status(200).json({ payment_link: orderData.payment_link });
-  } catch (error) {
-    console.error("Create order error:", error);
-    res.status(500).json({ error: "Something went wrong" });
+    res.json({ payment_link: orderData.payment_link });
+  } catch (err) {
+    console.error('Server error:', err);
+    res.status(500).json({ error: 'Server Error', details: err.message });
   }
 });
 
-const PORT = process.env.PORT || 1000;
 app.listen(PORT, () => {
   console.log(`✅ QRPass Final Server is running on port ${PORT}`);
 });

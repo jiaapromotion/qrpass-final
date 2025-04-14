@@ -2,45 +2,47 @@
 <html>
 <head>
   <title>QRPass Register & Pay</title>
-  <meta charset="UTF-8" />
-  <style>
-    body { font-family: Arial; padding: 20px; background: #f9f9f9; }
-    h1 { color: #444; }
-    input, button { display: block; margin: 10px 0; padding: 10px; width: 300px; }
-    button { background: orange; color: white; border: none; cursor: pointer; }
-  </style>
 </head>
 <body>
-  <h1>QRPass Register & Pay</h1>
-  <form id="regForm">
-    <input type="text" id="name" placeholder="Full Name" required />
-    <input type="email" id="email" placeholder="Email" required />
-    <input type="tel" id="phone" placeholder="Phone" required />
-    <input type="number" id="quantity" placeholder="No. of Tickets" required min="1" />
+  <h2>QRPass Register & Pay</h2>
+  <form id="registerForm">
+    <input type="text" name="name" placeholder="Name" required><br>
+    <input type="email" name="email" placeholder="Email" required><br>
+    <input type="tel" name="phone" placeholder="Phone" required><br>
+    <input type="number" name="quantity" placeholder="Quantity" value="1" min="1" required><br>
     <button type="submit">Pay & Register</button>
   </form>
 
   <script>
-    const form = document.getElementById('regForm');
-    form.addEventListener('submit', async function (e) {
+    document.getElementById('registerForm').addEventListener('submit', async function (e) {
       e.preventDefault();
-      const data = {
+
+      const form = e.target;
+      const formData = {
         name: form.name.value,
         email: form.email.value,
         phone: form.phone.value,
-        quantity: form.quantity.value,
+        quantity: form.quantity.value
       };
-      const res = await fetch('/create-order', {
 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (json.payment_url) {
-        window.location.href = json.payment_url;
-      } else {
-        alert(json.message || 'Something went wrong');
+      try {
+        const res = await fetch('/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await res.json();
+
+        if (data.payment_link) {
+          window.location.href = data.payment_link;
+        } else {
+          alert('Payment link generation failed.');
+          console.error(data);
+        }
+      } catch (err) {
+        alert('Something went wrong.');
+        console.error(err);
       }
     });
   </script>
