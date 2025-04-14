@@ -1,74 +1,88 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const axios = require("axios");
-const { GoogleSpreadsheet } = require("google-spreadsheet");
-const nodemailer = require("nodemailer");
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const axios = require('axios');
+require('dotenv').config();
+
 const app = express();
+const port = process.env.PORT || 1000;
 
 app.use(cors());
-app.use(express.json());
-app.use(express.static("public"));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT || 1000;
+let cashfreeToken = null;
 
-let CASHFREE_TOKEN = null;
-
-// ✅ Correct Cashfree Auth Endpoint for Production
+// ✅ Initialize Cashfree Token
 async function initializeCashfree() {
   try {
-    const res = await axios.post("https://api.cashfree.com/pg/v1/authenticate", {}, {
-      headers: {
-        "Content-Type": "application/json",
-        "x-client-id": process.env.CASHFREE_CLIENT_ID,
-        "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
-      },
-    });
-
-    CASHFREE_TOKEN = res.data.data.token;
-    console.log("✅ Cashfree token initialized");
-  } catch (error) {
-    console.error("❌ Failed to initialize Cashfree token:", error.message);
-  }
-}
-
-app.post("/create-order", async (req, res) => {
-  const { name, email, phone, quantity } = req.body;
-  const amount = 50 * Number(quantity);
-
-  try {
-    const orderRes = await axios.post(
-      "https://api.cashfree.com/pg/orders",
+    const response = await axios.post(
+      'https://api.cashfree.com/pg/oauth/token',
       {
-        order_amount: amount,
-        order_currency: "INR",
-        customer_details: {
-          customer_id: phone,
-          customer_email: email,
-          customer_phone: phone,
-        },
-        order_meta: {
-          return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`,
-        },
+        client_id: process.env.CASHFREE_CLIENT_ID,
+        client_secret: process.env.CASHFREE_CLIENT_SECRET,
+        grant_type: 'client_credentials',
       },
       {
         headers: {
-          Authorization: `Bearer ${CASHFREE_TOKEN}`,
-          "Content-Type": "application/json",
-          "x-api-version": "2022-09-01",
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    cashfreeToken = response.data.access_token;
+    console.log('✅ Cashfree token initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize Cashfree token:', error.message);
+  }
+}
+
+// ✅ API to Create Order
+app.post('/create-order', async (req, res) => {
+  try {
+    const { name, email, phone, quantity } = req.body;
+    const orderAmount = 199 * Number(quantity);
+    const orderId = `ORD${Date.now()}`;
+
+    const payload = {
+      order_id: orderId,
+      order_amount: orderAmount,
+      order_currency: 'INR',
+      customer_details: {
+        customer_id: phone,
+        customer_email: email,
+        customer_phone: phone,
+      },
+      order_meta: {
+        return_url: `https://qrpass-final.onrender.com/payment-success?order_id=${orderId}`,
+      },
+    };
+
+    const response = await axios.post(
+      'https://api.cashfree.com/pg/orders',
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${cashfreeToken}`,
+          'Content-Type': 'application/json',
+          'x-api-version': '2022-09-01',
         },
       }
     );
 
-    const paymentLink = orderRes.data.data.payment_link;
-    res.json({ paymentLink });
+    return res.json({ payment_link: response.data.payment_link });
   } catch (error) {
-    console.error("Create order failed:", error.message);
-    res.status(500).json({ error: "Order creation failed" });
+    console.error('❌ Error creating Cashfree order:', error.message);
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
-app.listen(PORT, async () => {
+// ✅ Serve front page
+app.get('/', (req, res) => {
+  res.send(`<h2>QRPass Final API is live!</h2>`);
+});
+
+// ✅ Start Server
+app.listen(port, async () => {
   await initializeCashfree();
-  console.log(`✅ QRPass Final Server is running on port ${PORT}`);
+  console.log(`✅ QRPass Final Server is running on port ${port}`);
 });
