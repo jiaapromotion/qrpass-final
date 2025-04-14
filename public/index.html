@@ -30,7 +30,8 @@
         phone: form.phone.value,
         quantity: form.quantity.value,
       };
-      const res = await fetch('/create-payment', {
+      const res = await fetch('/create-order', {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
