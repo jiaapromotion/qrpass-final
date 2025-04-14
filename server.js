@@ -1,80 +1,60 @@
 const express = require('express');
-const cors = require('cors');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 const dotenv = require('dotenv');
-const nodemailer = require('nodemailer');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
 const axios = require('axios');
+const path = require('path');
 
 dotenv.config();
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const port = process.env.PORT || 1000;
+// Load env vars
+const {
+  CASHFREE_CLIENT_ID,
+  CASHFREE_CLIENT_SECRET,
+  PORT
+} = process.env;
 
-// ===== Initialize Cashfree Token =====
+// Auth token variable
 let cashfreeToken = null;
+
+// Function to initialize Cashfree token
 async function initializeCashfree() {
   try {
     const response = await axios.post(
-      'https://api.cashfree.com/pg/auth',
+      'https://api.cashfree.com/pg/v1/authenticate',
       {},
       {
         headers: {
-          accept: 'application/json',
-          'x-client-id': process.env.CASHFREE_CLIENT_ID,
-          'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
-          'x-api-version': '2022-09-01'
+          'Content-Type': 'application/json',
+          'x-client-id': CASHFREE_CLIENT_ID,
+          'x-client-secret': CASHFREE_CLIENT_SECRET
         }
       }
     );
     cashfreeToken = response.data?.data?.token;
     console.log('✅ Cashfree token initialized');
-  } catch (err) {
-    console.error('❌ Failed to initialize Cashfree token:', err.message);
+  } catch (error) {
+    console.error('❌ Failed to initialize Cashfree token:', error.message);
   }
 }
 
-// ===== Google Sheet Save =====
-async function saveToSheet({ name, email, phone, quantity }) {
-  const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID);
-  await doc.useServiceAccountAuth(JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS));
-  await doc.loadInfo();
-  const sheet = doc.sheetsByIndex[0];
-  await sheet.addRow({ Name: name, Email: email, Phone: phone, Quantity: quantity });
-}
+// API: Create Payment
+app.post('/create-order', async (req, res) => {
+  const { name, email, phone, quantity } = req.body;
 
-// ===== Email Trigger =====
-async function sendEmail(email, name) {
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
-  });
-  await transporter.sendMail({
-    from: `"QRPass" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'QRPass Ticket Confirmation',
-    html: `<p>Hi ${name},<br/>Thank you for registering. Your payment was successful.</p>`
-  });
-}
+  if (!cashfreeToken) {
+    return res.status(500).json({ error: 'Cashfree token not available' });
+  }
 
-// ===== Create Payment Endpoint =====
-app.post('/create-payment', async (req, res) => {
+  const orderId = 'ORD' + Date.now();
+  const amount = quantity * 50;
+
   try {
-    const { name, email, phone, quantity } = req.body;
-    const orderId = `QR_${Date.now()}`;
-    const amount = quantity * 199;
-
-    if (!cashfreeToken) {
-      return res.status(500).json({ error: 'Payment failed to initialize' });
-    }
-
-    const orderResponse = await axios.post(
+    const result = await axios.post(
       'https://api.cashfree.com/pg/orders',
       {
         order_id: orderId,
@@ -86,38 +66,36 @@ app.post('/create-payment', async (req, res) => {
           customer_phone: phone
         },
         order_meta: {
-          return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`
+          return_url: `https://qrpass-final.onrender.com/payment-success?order_id=${orderId}`
         }
       },
       {
         headers: {
-          Authorization: `Bearer ${cashfreeToken}`,
+          'Authorization': `Bearer ${cashfreeToken}`,
           'Content-Type': 'application/json',
           'x-api-version': '2022-09-01'
         }
       }
     );
 
-    const paymentLink = orderResponse.data.data.payment_link;
+    return res.status(200).json({
+      payment_link: result.data?.data?.payment_link
+    });
 
-    // Save & Trigger only after success
-    await saveToSheet({ name, email, phone, quantity });
-    await sendEmail(email, name);
-
-    res.json({ link: paymentLink });
   } catch (err) {
-    console.error('❌ Payment error:', err.message);
-    res.status(500).json({ error: 'Payment failed to initialize' });
+    console.error('❌ Error creating Cashfree order:', err.response?.data || err.message);
+    return res.status(500).json({ error: 'Failed to create order' });
   }
 });
 
+// Server static index.html
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
-// ===== Start Server =====
+// Start the app
 initializeCashfree().then(() => {
-  app.listen(port, () => {
-    console.log(`✅ QRPass Final Server is running on port ${port}`);
+  app.listen(PORT || 1000, () => {
+    console.log(`✅ QRPass Final Server is running on port ${PORT || 1000}`);
   });
 });
