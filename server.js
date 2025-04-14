@@ -1,93 +1,83 @@
 const express = require("express");
+const bodyParser = require("body-parser");
 const cors = require("cors");
 const fetch = require("node-fetch");
 require("dotenv").config();
 
 const app = express();
-const port = process.env.PORT || 1000;
-
 app.use(cors());
-app.use(express.json());
-app.use(express.static("public"));
-
-let cashfreeToken = null;
-
-async function initializeCashfree() {
-  try {
-    const authResponse = await fetch('https://api.cashfree.com/pg/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-client-id': process.env.CASHFREE_CLIENT_ID,
-        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
-      },
-      body: JSON.stringify({
-        grant_type: 'client_credentials'
-      })
-    });
-
-    const authData = await authResponse.json();
-
-    if (!authResponse.ok) {
-      console.error("Failed to initialize Cashfree token:", authData);
-      return;
-    }
-
-    cashfreeToken = authData.access_token;
-    console.log("✅ Cashfree token initialized successfully");
-
-  } catch (err) {
-    console.error("❌ Error initializing Cashfree token:", err);
-  }
-}
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get("/", (req, res) => {
   res.send("QRPass Final API is live!");
 });
 
 app.post("/create-order", async (req, res) => {
-  const { name, email, phone, quantity } = req.body;
-  const orderId = "ORD" + Date.now();
-  const amount = 50 * parseInt(quantity || 1);
-
   try {
-    const orderResponse = await fetch('https://api.cashfree.com/pg/orders', {
-      method: 'POST',
+    const { name, email, phone, quantity } = req.body;
+    const amount = quantity * 50;
+
+    // STEP 1: Authenticate with Cashfree using production endpoint
+    const authResponse = await fetch("https://api.cashfree.com/pg/orders/authenticate", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${cashfreeToken}`
+        "Content-Type": "application/json",
+        "x-client-id": process.env.CASHFREE_CLIENT_ID,
+        "x-client-secret": process.env.CASHFREE_CLIENT_SECRET
+      }
+    });
+
+    const authData = await authResponse.json();
+
+    if (!authData?.data?.token) {
+      console.error("Auth Error:", authData);
+      return res.status(500).json({ error: "Authentication with Cashfree failed" });
+    }
+
+    const token = authData.data.token;
+
+    // STEP 2: Create an order
+    const orderPayload = {
+      order_id: `ORD${Date.now()}`,
+      order_amount: amount,
+      order_currency: "INR",
+      customer_details: {
+        customer_id: `${Date.now()}`,
+        customer_email: email,
+        customer_phone: phone
       },
-      body: JSON.stringify({
-        order_id: orderId,
-        order_amount: amount,
-        order_currency: "INR",
-        customer_details: {
-          customer_id: phone,
-          customer_email: email,
-          customer_phone: phone
-        },
-        order_meta: {
-          return_url: `https://qrpass-final.onrender.com/payment-success?order_id=${orderId}`
-        }
-      })
+      order_meta: {
+        return_url: `https://qrpass-final.onrender.com/payment-success?order_id={order_id}`
+      }
+    };
+
+    const orderResponse = await fetch("https://api.cashfree.com/pg/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(orderPayload)
     });
 
     const orderData = await orderResponse.json();
 
-    if (!orderResponse.ok) {
-      console.error("❌ Failed to create Cashfree order:", orderData);
-      return res.status(500).json({ error: "Order creation failed" });
+    if (!orderData?.data?.payment_link) {
+      console.error("Order Creation Failed:", orderData);
+      return res.status(500).json({ error: "Failed to create Cashfree order" });
     }
 
-    res.json({ payment_link: orderData.payment_link });
+    // Send payment link to frontend
+    res.json({ paymentLink: orderData.data.payment_link });
 
   } catch (error) {
-    console.error("❌ Error creating order:", error);
+    console.error("Unexpected Error:", error);
     res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-app.listen(port, () => {
-  initializeCashfree(); // ✅ Initialize token before requests
-  console.log(`✅ QRPass Final Server is running on port ${port}`);
+const PORT = process.env.PORT || 1000;
+app.listen(PORT, () => {
+  console.log(`✅ QRPass Final Server is running on port ${PORT}`);
 });
