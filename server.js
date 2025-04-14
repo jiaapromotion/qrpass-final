@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 1000;
 let cashfreeToken = '';
 let tokenExpiryTime = 0;
 
+// ✅ Initialize Cashfree Token
 async function initializeCashfree() {
   try {
     const now = Date.now();
@@ -34,12 +35,13 @@ async function initializeCashfree() {
 
     cashfreeToken = data.access_token;
     tokenExpiryTime = now + data.expires_in * 1000;
-    console.log('✅ Cashfree token initialized.');
+    console.log('✅ Cashfree token initialized');
   } catch (err) {
     console.error('❌ Failed to initialize Cashfree token:', err.message);
   }
 }
 
+// ✅ Create Order API
 app.post('/create-order', async (req, res) => {
   try {
     await initializeCashfree();
@@ -47,7 +49,7 @@ app.post('/create-order', async (req, res) => {
     const { name, email, phone, quantity } = req.body;
     const amount = Number(quantity) * 199;
 
-    const orderRes = await fetch('https://api.cashfree.com/pg/orders', {
+    const response = await fetch('https://api.cashfree.com/pg/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -68,23 +70,26 @@ app.post('/create-order', async (req, res) => {
       }),
     });
 
-    const orderData = await orderRes.json();
-    if (!orderData.payment_link) {
-      console.error('❌ Order creation failed:', orderData);
+    const result = await response.json();
+
+    if (!result.payment_link) {
+      console.error('❌ Order creation failed:', result);
       return res.status(500).json({ error: 'Cashfree order creation failed' });
     }
 
-    res.json({ paymentLink: orderData.payment_link });
+    res.json({ paymentLink: result.payment_link });
   } catch (err) {
-    console.error('❌ Error during order creation:', err.message);
+    console.error('❌ Server error:', err.message);
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
+// ✅ Root Status
 app.get('/', (req, res) => {
   res.send('QRPass Final API is live!');
 });
 
+// ✅ Start Server
 app.listen(PORT, () => {
   console.log(`✅ QRPass Final Server is running on port ${PORT}`);
   initializeCashfree();
