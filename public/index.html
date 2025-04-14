@@ -1,5 +1,47 @@
 <!DOCTYPE html>
 <html>
-<head><title>QRPass</title></head>
-<body><h1>QRPass Registration</h1></body>
+<head>
+  <title>QRPass Register & Pay</title>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f9f9f9; }
+    h1 { color: #444; }
+    input, button { display: block; margin: 10px 0; padding: 10px; width: 300px; }
+    button { background: orange; color: white; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>QRPass Register & Pay</h1>
+  <form id="regForm">
+    <input type="text" id="name" placeholder="Full Name" required />
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="tel" id="phone" placeholder="Phone" required />
+    <input type="number" id="quantity" placeholder="No. of Tickets" required min="1" />
+    <button type="submit">Pay & Register</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('regForm');
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const data = {
+        name: form.name.value,
+        email: form.email.value,
+        phone: form.phone.value,
+        quantity: form.quantity.value,
+      };
+      const res = await fetch('/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (json.payment_url) {
+        window.location.href = json.payment_url;
+      } else {
+        alert(json.message || 'Something went wrong');
+      }
+    });
+  </script>
+</body>
 </html>
