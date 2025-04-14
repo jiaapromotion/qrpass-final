@@ -1,109 +1,161 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
 const nodemailer = require('nodemailer');
-const fetch = require('node-fetch');
-const app = express();
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { google } = require('googleapis');
+const cors = require('cors');
+const axios = require('axios');
+require('dotenv').config();
 
+const app = express();
+app.use(cors());
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-const {
-  EMAIL_USER,
-  EMAIL_PASS,
-  AISENSY_API_KEY,
-  SPREADSHEET_ID,
-  GOOGLE_APPLICATION_CREDENTIALS,
-  CASHFREE_CLIENT_ID,
-  CASHFREE_CLIENT_SECRET,
-} = process.env;
+// Initialize Cashfree
+let cashfreeToken = '';
+const initializeCashfree = async () => {
+  try {
+    const response = await axios.post(
+      'https://api.cashfree.com/pg/v1/token',
+      {
+        grant_type: 'client_credentials',
+        client_id: process.env.CASHFREE_CLIENT_ID,
+        client_secret: process.env.CASHFREE_CLIENT_SECRET,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    cashfreeToken = response.data.data.token;
+    console.log('✅ Cashfree token initialized.');
+  } catch (error) {
+    console.error('❌ Failed to initialize Cashfree token:', error.message);
+  }
+};
 
-const credentials = JSON.parse(GOOGLE_APPLICATION_CREDENTIALS);
-
-// Google Sheets Setup
-const doc = new GoogleSpreadsheet(SPREADSHEET_ID);
-async function addToSheet({ name, email, phone, quantity }) {
-  await doc.useServiceAccountAuth(credentials);
-  await doc.loadInfo();
-  const sheet = doc.sheetsByIndex[0];
-  await sheet.addRow({ Name: name, Email: email, Phone: phone, Quantity: quantity, Time: new Date().toLocaleString() });
-}
-
-// Email Setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+// Spreadsheet Setup
+const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID);
+const serviceAccountAuth = new google.auth.JWT({
+  email: process.env.EMAIL_USER,
+  key: process.env.GOOGLE_APPLICATION_CREDENTIALS.replace(/\\n/g, '\n'),
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-async function sendEmail(to, subject, text) {
-  await transporter.sendMail({ from: EMAIL_USER, to, subject, text });
-}
+const addToSheet = async (data) => {
+  await doc.useServiceAccountAuth(JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS));
+  await doc.loadInfo();
+  const sheet = doc.sheetsByIndex[0];
+  await sheet.addRow(data);
+};
+
+// Email
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 // WhatsApp via AiSensy
-async function sendWhatsApp(phone, message) {
-  await fetch('https://backend.aisensy.com/campaign/t1/api/v2/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${AISENSY_API_KEY}`,
-    },
-    body: JSON.stringify({
-      phone: phone,
-      message: message,
-    }),
-  });
-}
+const sendWhatsApp = async (name, phone) => {
+  try {
+    await axios.post(
+      'https://backend.aisensy.com/campaign/t1/api/v2/message',
+      {
+        campaignName: 'QRPass Registration',
+        destination: `91${phone}`,
+        user: {
+          name: name,
+        },
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.AISENSY_API_KEY}`,
+        },
+      }
+    );
+    console.log('📲 WhatsApp message sent');
+  } catch (err) {
+    console.error('WhatsApp error:', err.message);
+  }
+};
 
-// Register Payment Endpoint
-app.post('/create-payment', async (req, res) => {
+// Register Route
+app.post('/register', async (req, res) => {
   const { name, email, phone, quantity } = req.body;
   const amount = parseInt(quantity) * 50;
 
-  const order_id = 'ORD' + Date.now();
-  const result = await fetch('https://api.cashfree.com/pg/orders', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-version': '2022-09-01',
-      'x-client-id': CASHFREE_CLIENT_ID,
-      'x-client-secret': CASHFREE_CLIENT_SECRET,
-    },
-    body: JSON.stringify({
-      order_id,
-      order_amount: amount,
-      order_currency: 'INR',
-      customer_details: {
-        customer_id: phone,
-        customer_email: email,
-        customer_phone: phone,
+  try {
+    const orderRes = await axios.post(
+      'https://api.cashfree.com/pg/orders',
+      {
+        order_id: `ORD_${Date.now()}`,
+        order_amount: amount,
+        order_currency: 'INR',
+        customer_details: {
+          customer_id: phone,
+          customer_email: email,
+          customer_phone: phone,
+        },
+        order_meta: {
+          return_url: 'https://qrpass.in/success',
+        },
       },
-      order_meta: {
-        return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&quantity=${quantity}`,
-      },
-    }),
-  });
+      {
+        headers: {
+          Authorization: `Bearer ${cashfreeToken}`,
+          'Content-Type': 'application/json',
+          'x-api-version': '2022-09-01',
+        },
+      }
+    );
 
-  const data = await result.json();
-  if (data.payment_link) {
-    res.json({ payment_url: data.payment_link });
-  } else {
-    res.json({ message: 'Payment failed to initialize' });
+    const paymentLink = orderRes.data.data.payment_link;
+
+    res.json({ success: true, link: paymentLink });
+  } catch (err) {
+    console.error('Cashfree Order Error:', err.response?.data || err.message);
+    res.json({ success: false });
   }
 });
 
-// Payment Success Redirect Handler
-app.get('/payment-success', async (req, res) => {
-  const { name, email, phone, quantity } = req.query;
+// Confirm Route (called after payment is done)
+app.post('/confirm', async (req, res) => {
+  const { name, email, phone, quantity } = req.body;
 
-  await addToSheet({ name, email, phone, quantity });
-  await sendEmail(email, 'QRPass Ticket Confirmation', `Dear ${name},\n\nThanks for registering. Your ${quantity} ticket(s) are confirmed.`);
-  await sendWhatsApp(phone, `Hi ${name}, your QRPass registration is confirmed for ${quantity} ticket(s). See you at the event!`);
+  try {
+    await addToSheet({ Name: name, Email: email, Phone: phone, Quantity: quantity });
 
-  res.send('<h2>✅ Registration successful after payment.</h2>');
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'QRPass Registration Confirmation',
+      text: `Hello ${name},\n\nYour QRPass registration is confirmed.\n\nThank you!`,
+    });
+
+    await sendWhatsApp(name, phone);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Confirmation error:', err.message);
+    res.json({ success: false });
+  }
 });
 
-// Home Route
-app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
+// Root
+app.get('/', (req, res) => {
+  res.send('<h1>QRPass Registration</h1>');
+});
 
-// Start Server
-app.listen(process.env.PORT || 1000, () => console.log('✅ QRPass Final Server is running...'));
+// Start server after initializing Cashfree
+initializeCashfree(); // 👈 required before server starts
+
+app.listen(process.env.PORT || 1000, () => {
+  console.log('✅ QRPass Final Server is running...');
+});
