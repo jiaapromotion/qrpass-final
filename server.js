@@ -14,10 +14,10 @@ const PORT = process.env.PORT || 1000;
 
 let CASHFREE_TOKEN = null;
 
-// Correct Authentication Endpoint
+// ✅ Correct Cashfree Auth Endpoint for Production
 async function initializeCashfree() {
   try {
-    const res = await axios.post("https://api.cashfree.com/pg/authenticate", {}, {
+    const res = await axios.post("https://api.cashfree.com/pg/v1/authenticate", {}, {
       headers: {
         "Content-Type": "application/json",
         "x-client-id": process.env.CASHFREE_CLIENT_ID,
