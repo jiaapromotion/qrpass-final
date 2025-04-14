@@ -1,43 +1,44 @@
-const express = require("express");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const bodyParser = require("body-parser");
-const { GoogleSpreadsheet } = require("google-spreadsheet");
-const nodemailer = require("nodemailer");
-const axios = require("axios");
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const dotenv = require('dotenv');
+const nodemailer = require('nodemailer');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const axios = require('axios');
 
 dotenv.config();
 const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static('public'));
+
 const port = process.env.PORT || 1000;
 
-app.use(cors());
-app.use(express.static("public"));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Initialize Cashfree token
+// ===== Initialize Cashfree Token =====
 let cashfreeToken = null;
 async function initializeCashfree() {
   try {
     const response = await axios.post(
-      "https://api.cashfree.com/pg/v1/authenticate",
+      'https://api.cashfree.com/pg/auth',
       {},
       {
         headers: {
-          "x-client-id": process.env.CASHFREE_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
-        },
+          accept: 'application/json',
+          'x-client-id': process.env.CASHFREE_CLIENT_ID,
+          'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
+          'x-api-version': '2022-09-01'
+        }
       }
     );
-    cashfreeToken = response.data.data.token;
-    console.log("✅ Cashfree token initialized");
-  } catch (error) {
-    console.error("❌ Failed to initialize Cashfree token:", error.message);
+    cashfreeToken = response.data?.data?.token;
+    console.log('✅ Cashfree token initialized');
+  } catch (err) {
+    console.error('❌ Failed to initialize Cashfree token:', err.message);
   }
 }
 
-// Push data to Google Sheet
-async function pushToSheet(name, email, phone, quantity) {
+// ===== Google Sheet Save =====
+async function saveToSheet({ name, email, phone, quantity }) {
   const doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID);
   await doc.useServiceAccountAuth(JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS));
   await doc.loadInfo();
@@ -45,71 +46,76 @@ async function pushToSheet(name, email, phone, quantity) {
   await sheet.addRow({ Name: name, Email: email, Phone: phone, Quantity: quantity });
 }
 
-// Send confirmation email
-async function sendEmail(to, name, quantity) {
+// ===== Email Trigger =====
+async function sendEmail(email, name) {
   const transporter = nodemailer.createTransport({
-    service: "Gmail",
+    service: 'gmail',
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
+      pass: process.env.EMAIL_PASS
+    }
   });
-
   await transporter.sendMail({
     from: `"QRPass" <${process.env.EMAIL_USER}>`,
-    to,
-    subject: "QRPass Ticket Confirmation",
-    html: `<h3>Hi ${name},</h3><p>Your registration for ${quantity} ticket(s) is confirmed.</p>`,
+    to: email,
+    subject: 'QRPass Ticket Confirmation',
+    html: `<p>Hi ${name},<br/>Thank you for registering. Your payment was successful.</p>`
   });
 }
 
-// Route to handle form submission and Cashfree order creation
-app.post("/create-order", async (req, res) => {
-  const { name, email, phone, quantity } = req.body;
-
+// ===== Create Payment Endpoint =====
+app.post('/create-payment', async (req, res) => {
   try {
-    const orderId = "ORD" + Date.now();
+    const { name, email, phone, quantity } = req.body;
+    const orderId = `QR_${Date.now()}`;
+    const amount = quantity * 199;
 
-    // Push to Google Sheet
-    await pushToSheet(name, email, phone, quantity);
+    if (!cashfreeToken) {
+      return res.status(500).json({ error: 'Payment failed to initialize' });
+    }
 
-    // Send confirmation email
-    await sendEmail(email, name, quantity);
-
-    // Create order in Cashfree
-    const orderRes = await axios.post(
-      "https://api.cashfree.com/pg/orders",
+    const orderResponse = await axios.post(
+      'https://api.cashfree.com/pg/orders',
       {
         order_id: orderId,
-        order_amount: parseInt(quantity) * 199,
-        order_currency: "INR",
+        order_amount: amount,
+        order_currency: 'INR',
         customer_details: {
-          customer_id: Date.now().toString(),
+          customer_id: phone,
           customer_email: email,
-          customer_phone: phone,
+          customer_phone: phone
         },
         order_meta: {
-          return_url: `https://qrpass-final.onrender.com/payment-success?order_id=${orderId}`,
-        },
+          return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`
+        }
       },
       {
         headers: {
           Authorization: `Bearer ${cashfreeToken}`,
-          "Content-Type": "application/json",
-          "x-api-version": "2022-09-01",
-        },
+          'Content-Type': 'application/json',
+          'x-api-version': '2022-09-01'
+        }
       }
     );
 
-    const paymentLink = orderRes.data.data.payment_link;
-    return res.json({ success: true, paymentLink });
-  } catch (error) {
-    console.error("❌ Order Creation Error:", error.response?.data || error.message);
-    res.status(500).json({ success: false, message: "Payment failed to initialize" });
+    const paymentLink = orderResponse.data.data.payment_link;
+
+    // Save & Trigger only after success
+    await saveToSheet({ name, email, phone, quantity });
+    await sendEmail(email, name);
+
+    res.json({ link: paymentLink });
+  } catch (err) {
+    console.error('❌ Payment error:', err.message);
+    res.status(500).json({ error: 'Payment failed to initialize' });
   }
 });
 
-// Start server
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+// ===== Start Server =====
 initializeCashfree().then(() => {
   app.listen(port, () => {
     console.log(`✅ QRPass Final Server is running on port ${port}`);
