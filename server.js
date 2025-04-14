@@ -14,34 +14,33 @@ const PORT = process.env.PORT || 1000;
 let cashfreeToken = '';
 let tokenExpiryTime = 0;
 
-// ✅ Initialize Cashfree Token
+// ✅ Fixed Cashfree Token Initialization
 async function initializeCashfree() {
   try {
     const now = Date.now();
     if (cashfreeToken && now < tokenExpiryTime) return;
 
-    const authResponse = await fetch('https://api.cashfree.com/pg/oauth/token', {
+    const authResponse = await fetch('https://api.cashfree.com/pg/v1/authenticate', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         'x-client-id': process.env.CASHFREE_CLIENT_ID,
         'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
       },
-      body: 'grant_type=client_credentials'
+      body: JSON.stringify({ grant_type: 'client_credentials' })
     });
 
     const data = await authResponse.json();
-    if (!data.access_token) throw new Error(JSON.stringify(data));
+    if (!data.status || data.status !== 'SUCCESS') throw new Error(JSON.stringify(data));
 
-    cashfreeToken = data.access_token;
-    tokenExpiryTime = now + data.expires_in * 1000;
+    cashfreeToken = data.data.token;
+    tokenExpiryTime = now + 300000; // 5 min expiry
     console.log('✅ Cashfree token initialized');
   } catch (err) {
     console.error('❌ Failed to initialize Cashfree token:', err.message);
   }
 }
 
-// ✅ Create Order API
 app.post('/create-order', async (req, res) => {
   try {
     await initializeCashfree();
@@ -84,12 +83,10 @@ app.post('/create-order', async (req, res) => {
   }
 });
 
-// ✅ Root Status
 app.get('/', (req, res) => {
   res.send('QRPass Final API is live!');
 });
 
-// ✅ Start Server
 app.listen(PORT, () => {
   console.log(`✅ QRPass Final Server is running on port ${PORT}`);
   initializeCashfree();
