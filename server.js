@@ -16,8 +16,8 @@ app.post('/create-order', async (req, res) => {
     const { name, email, phone, quantity } = req.body;
     const amount = Number(quantity) * 199 * 100;
 
-    // Get Auth Token
-    const authResponse = await fetch('https://api.cashfree.com/pg/v1/authenticate', {
+    // ✅ FIXED: Correct Auth URL
+    const authResponse = await fetch('https://api.cashfree.com/pg/authenticate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -35,7 +35,6 @@ app.post('/create-order', async (req, res) => {
 
     const token = authData.data.token;
 
-    // Create Order
     const orderPayload = {
       order_id: 'ORDER-' + Date.now(),
       order_amount: amount / 100,
