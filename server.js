@@ -1,7 +1,9 @@
-
 const express = require('express');
-const fetch = require('node-fetch');
 const bodyParser = require('body-parser');
+const fetch = require('node-fetch');
+const fs = require('fs');
+const { google } = require('googleapis');
+const path = require('path');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -13,71 +15,89 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Google Sheets Setup
+const credentials = require('./credentials.json');
+const spreadsheetId = '1ZnKm2cma8y9k6WMcT1YG3tqCjqq2VBILDEAaCBcyDtA';
+
+async function appendToGoogleSheet(data) {
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
+
+  const resource = {
+    values: [data],
+  };
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: 'Sheet1!A1',
+    valueInputOption: 'USER_ENTERED',
+    resource,
+  });
+}
+
+// Serve index.html
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Create Order with Cashfree
 app.post('/create-order', async (req, res) => {
+  const { name, email, phone, quantity } = req.body;
+  const amount = parseInt(quantity) * 50;
+
+  const orderPayload = {
+    order_amount: amount,
+    order_currency: 'INR',
+    customer_details: {
+      customer_id: `${Date.now()}`,
+      customer_email: email,
+      customer_phone: phone,
+    },
+    order_meta: {
+      return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&quantity=${quantity}`,
+    },
+  };
+
   try {
-    const { name, email, phone, quantity } = req.body;
-    const amount = Number(quantity) * 199 * 100;
-
-    // Get Auth Token
-    const authResponse = await fetch('https://api.cashfree.com/pg/v1/authenticate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-client-id': process.env.CASHFREE_CLIENT_ID,
-        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
-      }
-    });
-
-    const authData = await authResponse.json();
-    const token = authData.data.token;
-
-    // Create Order
-    const orderResponse = await fetch('https://api.cashfree.com/pg/orders', {
+    const response = await fetch('https://api.cashfree.com/pg/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-version': '2022-09-01',
-        'Authorization': `Bearer ${token}`
+        'x-client-id': process.env.CASHFREE_CLIENT_ID,
+        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET,
       },
-      body: JSON.stringify({
-        customer_details: {
-          customer_id: phone,
-          customer_email: email,
-          customer_phone: phone
-        },
-        order_meta: {
-          notify_url: 'https://qrpass-final.onrender.com/webhook'
-        },
-        order_id: 'order_' + Date.now(),
-        order_amount: amount / 100,
-        order_currency: 'INR'
-      })
+      body: JSON.stringify(orderPayload),
     });
 
-    const orderData = await orderResponse.json();
-
-    if (orderData.payment_link) {
-      res.json({ payment_link: orderData.payment_link });
+    const result = await response.json();
+    if (result.payment_link) {
+      res.json({ success: true, payment_link: result.payment_link });
     } else {
-      console.error('Cashfree Order Error:', orderData);
-      res.status(500).json({ error: 'Payment link generation failed.', details: orderData });
+      console.error('Cashfree Error:', result);
+      res.status(500).json({ success: false, message: 'Cashfree API failed' });
     }
   } catch (error) {
-    console.error('Error creating Cashfree order:', error);
-    res.status(500).json({ error: 'Something went wrong.', details: error.message });
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
 
-// Webhook to receive success payment callback
-app.post('/webhook', (req, res) => {
-  console.log('Received webhook:', req.body);
-  res.status(200).send('OK');
+// Payment Success Redirect
+app.get('/payment-success', async (req, res) => {
+  const { name, email, phone, quantity } = req.query;
+  try {
+    await appendToGoogleSheet([new Date().toLocaleString(), name, email, phone, quantity]);
+    res.send(`<h2>Thank you ${name}, your registration is successful!</h2>`);
+  } catch (error) {
+    res.send(`<h2>Error saving to Google Sheet</h2>`);
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`QRPass Final Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
