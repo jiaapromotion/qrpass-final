@@ -1,54 +1,37 @@
+<script>
+  document.getElementById('registerForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>QRPass Register & Pay</title>
-</head>
-<body>
-  <h2>QRPass Register & Pay</h2>
-  <form id="registerForm">
-    <input type="text" name="name" placeholder="Your Name" required /><br />
-    <input type="email" name="email" placeholder="Email" required /><br />
-    <input type="text" name="phone" placeholder="Phone" required /><br />
-    <input type="number" name="quantity" placeholder="Ticket Quantity" value="1" min="1" required /><br />
-    <button type="submit">Pay & Register</button>
-  </form>
+    const form = e.target;
 
-  <script>
-    document.getElementById('registerForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const form = e.target;
+    const formData = {
+      name: form.name.value,
+      email: form.email.value,
+      phone: form.phone.value,
+      quantity: form.quantity.value
+    };
 
-      const formData = {
-        name: form.name.value,
-        email: form.email.value,
-        phone: form.phone.value,
-        quantity: form.quantity.value
-      };
+    try {
+      const res = await fetch('/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
 
-      try {
-        const res = await fetch('/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
+      const data = await res.json();
+      console.log("🟢 Server Response:", data);
 
-        const data = await res.json();
-
-        if (data.session_id) {
-          const redirect_url = `https://payments.cashfree.com/pg/checkout?payment_session_id=${data.session_id}`;
-          window.location.href = redirect_url;
-        } else {
-          alert('Redirect failed.');
-          console.error(data);
-        }
-      } catch (err) {
-        alert('Error occurred.');
-        console.error(err);
+      if (data.success && data.session_id) {
+        const paymentUrl = `https://payments.cashfree.com/pg/checkout?payment_session_id=${data.session_id}`;
+        console.log("🔁 Redirecting to:", paymentUrl);
+        window.location.href = paymentUrl;
+      } else {
+        alert('Redirect failed.');
+        console.error("❌ Payment session missing:", data);
       }
-    });
-  </script>
-</body>
-</html>
+    } catch (err) {
+      alert('Something went wrong. Try again.');
+      console.error("⚠️ Error:", err);
+    }
+  });
+</script>
