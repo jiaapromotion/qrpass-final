@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,8 +37,9 @@
 
         const data = await res.json();
 
-        if (data.redirect_url) {
-          window.location.href = data.redirect_url;
+        if (data.session_id) {
+          const redirect_url = `https://payments.cashfree.com/pg/checkout?payment_session_id=${data.session_id}`;
+          window.location.href = redirect_url;
         } else {
           alert('Redirect failed.');
           console.error(data);

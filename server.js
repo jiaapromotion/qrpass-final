@@ -32,8 +32,6 @@ app.post('/create-order', async (req, res) => {
       }
     };
 
-    console.log('📤 Creating order via /pg/orders:', JSON.stringify(orderPayload));
-
     const response = await fetch('https://api.cashfree.com/pg/orders', {
       method: 'POST',
       headers: {
@@ -49,8 +47,7 @@ app.post('/create-order', async (req, res) => {
     console.log('📩 Cashfree Order Response:', result);
 
     if (result && result.data && result.data.payment_session_id) {
-      const redirectUrl = `https://payments.cashfree.com/pg/checkout?payment_session_id=${result.data.payment_session_id}`;
-      return res.json({ success: true, redirect_url: redirectUrl });
+      return res.json({ success: true, session_id: result.data.payment_session_id });
     } else {
       return res.status(500).json({ success: false, details: result });
     }
@@ -61,7 +58,6 @@ app.post('/create-order', async (req, res) => {
   }
 });
 
-// 🔥 Fix for root route blank screen
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
