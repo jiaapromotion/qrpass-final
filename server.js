@@ -20,9 +20,9 @@ app.post('/create-order', async (req, res) => {
 
     console.log('👉 Received request:', { name, email, phone, quantity });
 
-    // ✅ Correct Auth endpoint for Payment Links
-    console.log('👉 Hitting Cashfree Payment Link Auth endpoint...');
-    const authResponse = await fetch('https://api.cashfree.com/pg/links/auth', {
+    // Step 1: Get Auth Token from Cashfree
+    console.log('👉 Hitting Cashfree Auth endpoint...');
+    const authResponse = await fetch('https://api.cashfree.com/pg/auth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -43,7 +43,7 @@ app.post('/create-order', async (req, res) => {
     const token = authData.data.token;
     console.log('✅ Auth token received:', token.slice(0, 10) + '...');
 
-    // ✅ Generate Payment Link
+    // Step 2: Create Payment Link
     const linkPayload = {
       customer_details: {
         customer_id: `ID_${Date.now()}`,
