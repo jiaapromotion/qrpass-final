@@ -19,7 +19,7 @@ app.post('/create-order', async (req, res) => {
     const amount = Number(quantity) * 199 * 100;
 
     // ✅ Correct Cashfree Auth URL (Production)
-   const authResponse = await fetch('https://api.cashfree.com/pg/orders/auth', {
+   const response = await fetch('https://api.cashfree.com/pg/links', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -38,18 +38,23 @@ app.post('/create-order', async (req, res) => {
 
     const token = authData.data.token;
 
-    const orderPayload = {
-  order_id: `ORD_${Date.now()}`,
-  order_amount: amount / 100,
-  order_currency: 'INR',
+  const orderPayload = {
   customer_details: {
     customer_id: `ID_${Date.now()}`,
     customer_email: email,
     customer_phone: phone
   },
-  order_meta: {
-    return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`
-  }
+  link_notify: {
+    send_sms: true,
+    send_email: true
+  },
+  link_meta: {
+    return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`,
+    notify_url: ''
+  },
+  link_id: `LINK_${Date.now()}`,
+  link_amount: amount / 100,
+  link_currency: 'INR'
 };
 
 
