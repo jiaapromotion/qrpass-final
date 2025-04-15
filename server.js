@@ -19,14 +19,16 @@ app.post('/create-order', async (req, res) => {
     const amount = Number(quantity) * 199 * 100;
 
     // ✅ Correct Cashfree Auth URL (Production)
-    const authResponse = await fetch('https://api.cashfree.com/pg/orders/auth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-client-id': process.env.CASHFREE_CLIENT_ID,
-        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
-      }
-    });
+   const authResponse = await fetch('https://api.cashfree.com/pg/orders/auth', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-version': '2022-09-01',
+    'x-client-id': process.env.CASHFREE_CLIENT_ID,
+    'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
+  }
+});
+
 
     const authData = await authResponse.json();
 
