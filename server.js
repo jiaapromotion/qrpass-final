@@ -73,4 +73,6 @@ app.post('/create-order', async (req, res) => {
   }
 });
 
-app.listen(PORT, ()
+app.listen(PORT, () => {
+  console.log(`QRPass Final Server is running on port ${PORT}`);
+});
