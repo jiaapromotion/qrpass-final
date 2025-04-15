@@ -1,50 +1,33 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>QRPass Register & Pay</title>
-</head>
-<body>
-  <h2>QRPass Register & Pay</h2>
-  <form id="registerForm">
-    <input type="text" name="name" placeholder="Name" required><br>
-    <input type="email" name="email" placeholder="Email" required><br>
-    <input type="tel" name="phone" placeholder="Phone" required><br>
-    <input type="number" name="quantity" placeholder="Quantity" value="1" min="1" required><br>
-    <button type="submit">Pay & Register</button>
-  </form>
+<script>
+  document.getElementById('registerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
 
-  <script>
-    document.getElementById('registerForm').addEventListener('submit', async function (e) {
-      e.preventDefault();
+    const formData = {
+      name: form.name.value,
+      email: form.email.value,
+      phone: form.phone.value,
+      quantity: form.quantity.value
+    };
 
-      const form = e.target;
-      const formData = {
-        name: form.name.value,
-        email: form.email.value,
-        phone: form.phone.value,
-        quantity: form.quantity.value
-      };
+    try {
+      const res = await fetch('/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
 
-      try {
-        const res = await fetch('/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
+      const data = await res.json();
 
-        const data = await res.json();
-
-        if (data.payment_link) {
-          window.location.href = data.payment_link;
-        } else {
-          alert('Payment link generation failed.');
-          console.error(data);
-        }
-      } catch (err) {
-        alert('Something went wrong.');
-        console.error(err);
+      if (data.redirect_url) {
+        window.location.href = data.redirect_url;
+      } else {
+        alert('Redirect URL generation failed.');
+        console.error(data);
       }
-    });
-  </script>
-</body>
-</html>
+    } catch (err) {
+      alert('Something went wrong.');
+      console.error(err);
+    }
+  });
+</script>
