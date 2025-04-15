@@ -22,7 +22,7 @@ app.post('/create-order', async (req, res) => {
 
     // Step 1: Get Auth Token from Cashfree
     console.log('👉 Hitting Cashfree Auth endpoint...');
-    const authResponse = await fetch('https://api.cashfree.com/pg/auth', {
+    const authResponse = await fetch('https://api.cashfree.com/pg/partners/orders/auth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
