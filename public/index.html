@@ -1,33 +1,52 @@
-<script>
-  document.getElementById('registerForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const form = e.target;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QRPass Register & Pay</title>
+</head>
+<body>
+  <h2>QRPass Register & Pay</h2>
+  <form id="registerForm">
+    <input type="text" name="name" placeholder="Your Name" required /><br />
+    <input type="email" name="email" placeholder="Email" required /><br />
+    <input type="text" name="phone" placeholder="Phone" required /><br />
+    <input type="number" name="quantity" placeholder="Ticket Quantity" value="1" min="1" required /><br />
+    <button type="submit">Pay & Register</button>
+  </form>
 
-    const formData = {
-      name: form.name.value,
-      email: form.email.value,
-      phone: form.phone.value,
-      quantity: form.quantity.value
-    };
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const form = e.target;
 
-    try {
-      const res = await fetch('/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
+      const formData = {
+        name: form.name.value,
+        email: form.email.value,
+        phone: form.phone.value,
+        quantity: form.quantity.value
+      };
 
-      const data = await res.json();
+      try {
+        const res = await fetch('/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
 
-      if (data.redirect_url) {
-        window.location.href = data.redirect_url;
-      } else {
-        alert('Redirect URL generation failed.');
-        console.error(data);
+        const data = await res.json();
+
+        if (data.redirect_url) {
+          window.location.href = data.redirect_url;
+        } else {
+          alert('Redirect failed.');
+          console.error(data);
+        }
+      } catch (err) {
+        alert('Error occurred.');
+        console.error(err);
       }
-    } catch (err) {
-      alert('Something went wrong.');
-      console.error(err);
-    }
-  });
-</script>
+    });
+  </script>
+</body>
+</html>

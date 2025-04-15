@@ -60,6 +60,11 @@ app.post('/create-order', async (req, res) => {
   }
 });
 
+// 🔥 Fix for root route blank screen
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 QRPass Redirect Server running on port ${PORT}`);
 });
