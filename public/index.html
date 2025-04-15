@@ -1,37 +1,45 @@
-<script>
-  document.getElementById('registerForm').addEventListener('submit', async function (e) {
-    e.preventDefault();
 
-    const form = e.target;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QRPass - Visitor Registration</title>
+</head>
+<body>
+  <h2>QRPass Visitor Registration</h2>
+  <form id="registerForm">
+    <input type="text" name="name" placeholder="Name" required /><br />
+    <input type="email" name="email" placeholder="Email" required /><br />
+    <input type="text" name="phone" placeholder="Phone" required /><br />
+    <input type="number" name="quantity" placeholder="Tickets" value="1" min="1" required /><br />
+    <button type="submit">Pay & Register</button>
+  </form>
 
-    const formData = {
-      name: form.name.value,
-      email: form.email.value,
-      phone: form.phone.value,
-      quantity: form.quantity.value
-    };
+  <script>
+    document.getElementById("registerForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = {
+        name: form.name.value,
+        email: form.email.value,
+        phone: form.phone.value,
+        quantity: form.quantity.value
+      };
 
-    try {
-      const res = await fetch('/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
 
       const data = await res.json();
-      console.log("🟢 Server Response:", data);
-
-      if (data.success && data.session_id) {
-        const paymentUrl = `https://payments.cashfree.com/pg/checkout?payment_session_id=${data.session_id}`;
-        console.log("🔁 Redirecting to:", paymentUrl);
-        window.location.href = paymentUrl;
+      if (data.success) {
+        window.location.href = data.redirect;
       } else {
-        alert('Redirect failed.');
-        console.error("❌ Payment session missing:", data);
+        alert("Payment failed. Try again.");
+        console.log(data);
       }
-    } catch (err) {
-      alert('Something went wrong. Try again.');
-      console.error("⚠️ Error:", err);
-    }
-  });
-</script>
+    });
+  </script>
+</body>
+</html>

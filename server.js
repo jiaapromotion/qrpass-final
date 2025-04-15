@@ -1,67 +1,76 @@
 
-const express = require('express');
-const fetch = require('node-fetch');
-const path = require('path');
-const bodyParser = require('body-parser');
-require('dotenv').config();
+const express = require("express");
+const bodyParser = require("body-parser");
+const nodemailer = require("nodemailer");
+const { GoogleSpreadsheet } = require("google-spreadsheet");
+const { v4: uuidv4 } = require("uuid");
+const QRCode = require("qrcode");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 1000;
-
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static("public"));
 
-app.post('/create-order', async (req, res) => {
-  try {
-    const { name, email, phone, quantity } = req.body;
-    const orderAmount = Number(quantity) * 199;
+const SERVICE_ACCOUNT = JSON.parse(
+  Buffer.from(process.env.GOOGLE_SERVICE_KEY_BASE64, "base64").toString("utf8")
+);
 
-    const orderPayload = {
-      order_id: `ORDER_${Date.now()}`,
-      order_amount: orderAmount,
-      order_currency: 'INR',
-      customer_details: {
-        customer_id: `CUST_${Date.now()}`,
-        customer_name: name,
-        customer_email: email,
-        customer_phone: phone
-      },
-      order_meta: {
-        return_url: `https://qrpass-final.onrender.com/payment-success?order_id={order_id}`
-      }
-    };
+const doc = new GoogleSpreadsheet("1ZnKm2cma8y9k6WMcT1YG3tqCjqq2VBILDEAaCBcyDtA");
 
-    const response = await fetch('https://api.cashfree.com/pg/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-version': '2022-09-01',
-        'x-client-id': process.env.CASHFREE_CLIENT_ID,
-        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
-      },
-      body: JSON.stringify(orderPayload)
-    });
+const GMAIL_USER = "info@qrpass.in";
+const GMAIL_PASS = process.env.GMAIL_PASS;
 
-    const result = await response.json();
-    console.log('📩 Cashfree Order Response:', result);
-
-    if (result && result.data && result.data.payment_session_id) {
-      return res.json({ success: true, session_id: result.data.payment_session_id });
-    } else {
-      return res.status(500).json({ success: false, details: result });
-    }
-
-  } catch (err) {
-    console.error('❗ Server error:', err);
-    res.status(500).json({ success: false, details: err.message });
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: GMAIL_USER,
+    pass: GMAIL_PASS
   }
 });
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.post("/register", async (req, res) => {
+  const { name, email, phone, quantity } = req.body;
+  const orderId = uuidv4();
+
+  const paymentResponse = await fetch("https://sandbox.cashfree.com/pg/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-version": "2022-09-01",
+      "x-client-id": process.env.CASHFREE_CLIENT_ID,
+      "x-client-secret": process.env.CASHFREE_CLIENT_SECRET
+    },
+    body: JSON.stringify({
+      customer_details: {
+        customer_id: `cust_${phone}`,
+        customer_email: email,
+        customer_phone: phone,
+        customer_name: name
+      },
+      order_id: orderId,
+      order_amount: quantity * 199,
+      order_currency: "INR",
+      order_meta: {
+        return_url: "https://qrpass.in/payment-success?order_id={order_id}"
+      }
+    })
+  });
+
+  const paymentData = await paymentResponse.json();
+
+  if (paymentData.payment_session_id) {
+    res.json({
+      success: true,
+      redirect: `https://payments.cashfree.com/pg/checkout?payment_session_id=${paymentData.payment_session_id}`
+    });
+  } else {
+    res.status(400).json({ success: false, message: "Cashfree order failed", raw: paymentData });
+  }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 QRPass Redirect Server running on port ${PORT}`);
+  console.log("🚀 QRPass Server Live on port", PORT);
 });
