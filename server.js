@@ -1,3 +1,4 @@
+
 const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
@@ -48,12 +49,11 @@ app.post('/create-order', async (req, res) => {
     console.log('📩 Cashfree Order Response:', result);
 
     if (result && result.data && result.data.payment_session_id) {
-  const redirectUrl = `https://payments.cashfree.com/pg/checkout?id=${result.data.payment_session_id}`;
-  return res.json({ success: true, redirect_url: redirectUrl });
-} else {
-  return res.status(500).json({ success: false, details: result });
-}
-
+      const redirectUrl = `https://payments.cashfree.com/pg/checkout?payment_session_id=${result.data.payment_session_id}`;
+      return res.json({ success: true, redirect_url: redirectUrl });
+    } else {
+      return res.status(500).json({ success: false, details: result });
+    }
 
   } catch (err) {
     console.error('❗ Server error:', err);
