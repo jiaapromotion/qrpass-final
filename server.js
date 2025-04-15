@@ -10,13 +10,13 @@ const PORT = process.env.PORT || 1000;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Serve static files from public folder
+// Serve static files from 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/create-order', async (req, res) => {
   try {
     const { name, email, phone, quantity } = req.body;
-    const amount = Number(quantity) * 199 * 100;
+    const amount = Number(quantity) * 199 * 100; // In paise
 
     // Step 1: Get Auth Token from Cashfree
     const authResponse = await fetch('https://api.cashfree.com/pg/orders/auth', {
@@ -37,7 +37,7 @@ app.post('/create-order', async (req, res) => {
 
     const token = authData.data.token;
 
-    // Step 2: Create Payment Link
+    // Step 2: Create Payment Link (not order!)
     const linkPayload = {
       customer_details: {
         customer_id: `ID_${Date.now()}`,
