@@ -10,76 +10,49 @@ const PORT = process.env.PORT || 1000;
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Serve static files from 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/create-order', async (req, res) => {
   try {
     const { name, email, phone, quantity } = req.body;
-    const amount = Number(quantity) * 199 * 100; // In paise
+    const amount = Number(quantity) * 199; // in rupees
 
-    console.log('👉 Received request:', { name, email, phone, quantity });
-
-    // Step 1: Get Auth Token from Cashfree
-    console.log('👉 Hitting Cashfree Auth endpoint...');
-    const authResponse = await fetch('https://api.cashfree.com/pg/auth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-version': '2022-09-01',
-        'x-client-id': process.env.CASHFREE_CLIENT_ID,
-        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
-      }
-    });
-
-    const authData = await authResponse.json();
-    console.log('🔐 Auth response:', authData);
-
-    if (!authData || !authData.data || !authData.data.token) {
-      console.log('❌ Auth token missing or invalid');
-      return res.status(500).json({ success: false, details: 'Auth token failed', debug: authData });
-    }
-
-    const token = authData.data.token;
-    console.log('✅ Auth token received:', token.slice(0, 10) + '...');
-
-    // Step 2: Create Payment Link
     const linkPayload = {
       customer_details: {
-        customer_id: `ID_${Date.now()}`,
         customer_email: email,
-        customer_phone: phone
+        customer_phone: phone,
+        customer_name: name
       },
       link_notify: {
         send_sms: true,
         send_email: true
       },
       link_meta: {
-        return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`,
-        notify_url: ''
+        return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`
       },
       link_id: `LINK_${Date.now()}`,
-      link_amount: amount / 100,
+      link_amount: amount,
       link_currency: 'INR'
     };
 
-    console.log('📤 Sending to Cashfree /pg/links:', JSON.stringify(linkPayload));
+    console.log('📤 Sending to Cashfree /pg/v1/paymentLinks:', JSON.stringify(linkPayload));
 
-    const response = await fetch('https://api.cashfree.com/pg/links', {
+    const response = await fetch('https://api.cashfree.com/pg/v1/paymentLinks', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-version': '2022-09-01',
-        'Authorization': `Bearer ${token}`
+        'x-client-id': process.env.CASHFREE_CLIENT_ID,
+        'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
       },
       body: JSON.stringify(linkPayload)
     });
 
     const result = await response.json();
-    console.log('📩 Cashfree Response:', result);
+    console.log('📩 Cashfree Payment Link Response:', result);
 
-    if (result.link_url) {
-      return res.json({ success: true, payment_link: result.link_url });
+    if (result?.data?.payment_link_url) {
+      return res.json({ success: true, payment_link: result.data.payment_link_url });
     } else {
       return res.status(500).json({ success: false, details: result });
     }
@@ -91,5 +64,5 @@ app.post('/create-order', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 QRPass Final Server is running on port ${PORT}`);
+  console.log(`🚀 QRPass Final Server running on port ${PORT}`);
 });
