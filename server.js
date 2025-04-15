@@ -39,17 +39,19 @@ app.post('/create-order', async (req, res) => {
     const token = authData.data.token;
 
     const orderPayload = {
-      order_amount: amount / 100,
-      order_currency: 'INR',
-      customer_details: {
-        customer_id: `ID_${Date.now()}`,
-        customer_email: email,
-        customer_phone: phone
-      },
-      order_meta: {
-        return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`
-      }
-    };
+  order_id: `ORD_${Date.now()}`,
+  order_amount: amount / 100,
+  order_currency: 'INR',
+  customer_details: {
+    customer_id: `ID_${Date.now()}`,
+    customer_email: email,
+    customer_phone: phone
+  },
+  order_meta: {
+    return_url: `https://qrpass-final.onrender.com/payment-success?name=${encodeURIComponent(name)}`
+  }
+};
+
 
     const response = await fetch('https://api.cashfree.com/pg/orders', {
       method: 'POST',
