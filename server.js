@@ -12,9 +12,10 @@ const PORT = process.env.PORT || 1000;
 
 app.post('/register', async (req, res) => {
   const { name, email, phone, quantity } = req.body;
+  const amount = Number(quantity) * 99;
 
   try {
-    // Send email
+    // Email sending
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -26,21 +27,27 @@ app.post('/register', async (req, res) => {
     await transporter.sendMail({
       from: process.env.GMAIL_USER,
       to: email,
-      subject: 'QRPass Ticket Confirmation',
-      text: `Thanks ${name}, your registration is confirmed.`
+      subject: 'QRPass Ticket - Payment Pending',
+      text: `Hi ${name}, please complete your payment to confirm your ticket.`
     });
 
-    // Cashfree Payment Session
+    // Create dynamic payment link using LIVE Cashfree
+    const orderId = "QR" + Date.now();
+
     const response = await axios.post(
-      'https://sandbox.cashfree.com/pg/orders',
+      'https://api.cashfree.com/pg/links',
       {
         customer_details: {
           customer_id: phone,
           customer_email: email,
           customer_phone: phone
         },
-        order_amount: Number(quantity) * 99,
-        order_currency: 'INR'
+        order_id: orderId,
+        order_amount: amount,
+        order_currency: "INR",
+        order_meta: {
+          return_url: "https://qrpass.in/payment-success"
+        }
       },
       {
         headers: {
@@ -53,19 +60,20 @@ app.post('/register', async (req, res) => {
       }
     );
 
-    const sessionId = response.data.payment_session_id;
+    const paymentLink = response.data.link_url;
 
     return res.json({
       success: true,
-      message: 'Registered and email sent',
-      paymentSessionId: sessionId
+      message: "Registered and email sent",
+      paymentLink
     });
+
   } catch (err) {
     console.error(err);
-    return res.json({ success: false, message: 'Error occurred.' });
+    return res.json({ success: false, message: "Error occurred." });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+  console.log(`✅ Server running on ${PORT}`);
 });

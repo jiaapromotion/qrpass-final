@@ -3,26 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <title>QRPass Register</title>
-  <script src="https://sdk.cashfree.com/js/ui/2.0.0/cashfree.prod.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 50px;
+      background: #f4f4f4;
+    }
+    form {
+      background: white;
+      padding: 30px;
+      max-width: 400px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      border-radius: 10px;
+    }
+    input, button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      background-color: #28a745;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+  </style>
 </head>
 <body>
-  <h2>Register & Get Ticket</h2>
   <form id="registerForm">
-    <input type="text" id="name" placeholder="Your Name" required><br>
-    <input type="email" id="email" placeholder="Your Email" required><br>
-    <input type="text" id="phone" placeholder="Phone Number" required><br>
-    <input type="number" id="quantity" placeholder="Quantity" required><br>
+    <h2>Register & Get Ticket</h2>
+    <input type="text" id="name" placeholder="Your Name" required>
+    <input type="email" id="email" placeholder="Your Email" required>
+    <input type="tel" id="phone" placeholder="Your Phone Number" required>
+    <input type="number" id="quantity" placeholder="No. of Tickets" required min="1">
     <button type="submit">Submit</button>
   </form>
 
   <script>
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    document.getElementById('registerForm').addEventListener('submit', async function (e) {
       e.preventDefault();
 
-      const name = document.getElementById('name').value;
-      const email = document.getElementById('email').value;
-      const phone = document.getElementById('phone').value;
-      const quantity = document.getElementById('quantity').value;
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const quantity = parseInt(document.getElementById('quantity').value.trim());
+
+      if (!name || !email || !phone || !quantity || quantity <= 0) {
+        return alert("Please fill all fields correctly.");
+      }
 
       const res = await fetch('/register', {
         method: 'POST',
@@ -32,14 +66,11 @@
 
       const data = await res.json();
 
-      if (data.success && data.paymentSessionId) {
-        alert("Registered and email sent. Redirecting to payment...");
-        Cashfree.initPopup({
-          paymentSessionId: data.paymentSessionId,
-          redirectTarget: "_self"
-        });
+      if (data.success && data.paymentLink) {
+        alert("Redirecting to secure payment...");
+        window.location.href = data.paymentLink;
       } else {
-        alert(data.message || "Error occurred.");
+        alert(data.message || "Something went wrong!");
       }
     });
   </script>
