@@ -15,7 +15,7 @@ app.post('/register', async (req, res) => {
   const amount = Number(quantity) * 99;
 
   try {
-    // ✅ Send email confirmation
+    // ✅ 1. Send Email Confirmation
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -28,10 +28,10 @@ app.post('/register', async (req, res) => {
       from: process.env.GMAIL_USER,
       to: email,
       subject: 'QRPass Ticket Registration',
-      text: `Hi ${name},\n\nThank you for registering. Please proceed to payment using the link you'll be redirected to.\n\n- QRPass Team`
+      text: `Hi ${name},\n\nThank you for registering. You'll now be redirected to a secure payment link to confirm your ticket.\n\n- QRPass Team`
     });
 
-    // ✅ Create Cashfree Payment Link
+    // ✅ 2. Create Cashfree Payment Link (Live)
     const response = await axios.post(
       'https://api.cashfree.com/pg/links',
       {
@@ -43,6 +43,7 @@ app.post('/register', async (req, res) => {
         link_id: "QR" + Date.now(),
         link_amount: amount,
         link_currency: "INR",
+        link_purpose: "Event Ticket Purchase",
         link_meta: {
           return_url: "https://qrpass.in/payment-success"
         }
@@ -67,7 +68,7 @@ app.post('/register', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("ERROR:", err.response?.data || err.message);
+    console.error("💥 ERROR:", err.response?.data || err.message);
     return res.json({ success: false, message: "Error occurred." });
   }
 });
