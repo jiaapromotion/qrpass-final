@@ -2,76 +2,86 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>QRPass Register</title>
+  <title>QRPass Razorpay Test</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
+      background: #f7f7f7;
       padding: 50px;
-      background: #f4f4f4;
     }
     form {
       background: white;
-      padding: 30px;
       max-width: 400px;
       margin: auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      padding: 30px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
       border-radius: 10px;
     }
     input, button {
-      display: block;
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       margin-top: 15px;
       border: 1px solid #ccc;
       border-radius: 5px;
     }
     button {
-      background-color: #28a745;
+      background-color: #0f9d58;
       color: white;
+      font-weight: bold;
       cursor: pointer;
     }
     button:hover {
-      background-color: #218838;
+      background-color: #0b7d45;
     }
   </style>
 </head>
 <body>
-  <form id="registerForm">
-    <h2>Register & Get Ticket</h2>
+  <form id="razorpay-form">
+    <h2>QRPass Test Payment</h2>
     <input type="text" id="name" placeholder="Your Name" required>
-    <input type="email" id="email" placeholder="Your Email" required>
-    <input type="tel" id="phone" placeholder="Your Phone Number" required>
-    <input type="number" id="quantity" placeholder="No. of Tickets" required min="1">
-    <button type="submit">Submit</button>
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="tel" id="phone" placeholder="Phone Number" required>
+    <input type="number" id="quantity" placeholder="No. of Tickets" min="1" value="1" required>
+    <button type="submit">Pay with Razorpay</button>
   </form>
 
   <script>
-    document.getElementById('registerForm').addEventListener('submit', async function (e) {
+    const razorpayKey = 'rzp_test_7oY41Dzk4aWjox'; // ✅ Your test key
+
+    document.getElementById('razorpay-form').addEventListener('submit', function (e) {
       e.preventDefault();
 
-      const name = document.getElementById('name').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const phone = document.getElementById('phone').value.trim();
-      const quantity = parseInt(document.getElementById('quantity').value.trim());
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const phone = document.getElementById('phone').value;
+      const quantity = parseInt(document.getElementById('quantity').value);
+      const amount = quantity * 99 * 100; // in paise
 
-      if (!name || !email || !phone || !quantity || quantity <= 0) {
-        return alert("Please fill all fields correctly.");
-      }
+      const options = {
+        key: razorpayKey,
+        amount: amount,
+        currency: 'INR',
+        name: 'QRPass Ticket',
+        description: 'Test Ticket Purchase',
+        prefill: {
+          name: name,
+          email: email,
+          contact: phone
+        },
+        notes: {
+          tickets: quantity
+        },
+        theme: {
+          color: '#0f9d58'
+        },
+        handler: function (response) {
+          alert('✅ Payment Successful! Payment ID: ' + response.razorpay_payment_id);
+        }
+      };
 
-      const res = await fetch('/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, quantity })
-      });
-
-      const data = await res.json();
-
-      if (data.success && data.paymentLink) {
-        alert("Redirecting to secure payment...");
-        window.location.href = data.paymentLink;
-      } else {
-        alert(data.message || "Something went wrong!");
-      }
+      const rzp = new Razorpay(options);
+      rzp.open();
     });
   </script>
 </body>
