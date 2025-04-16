@@ -44,6 +44,7 @@ app.post('/register', async (req, res) => {
         link_amount: amount,
         link_currency: "INR",
         link_purpose: "Event Ticket Purchase",
+        link_notify: true,
         link_meta: {
           return_url: "https://qrpass.in/payment-success"
         }
