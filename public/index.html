@@ -2,16 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>QRPass Razorpay Test</title>
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <title>QRPass PayU Test</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f7f7f7;
-      padding: 50px;
-    }
+    body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 50px; }
     form {
-      background: white;
+      background: #fff;
       max-width: 400px;
       margin: auto;
       padding: 30px;
@@ -26,63 +21,34 @@
       border-radius: 5px;
     }
     button {
-      background-color: #0f9d58;
+      background-color: #f58220;
       color: white;
       font-weight: bold;
       cursor: pointer;
     }
     button:hover {
-      background-color: #0b7d45;
+      background-color: #e76b00;
     }
   </style>
 </head>
 <body>
-  <form id="razorpay-form">
-    <h2>QRPass Test Payment</h2>
-    <input type="text" id="name" placeholder="Your Name" required>
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="tel" id="phone" placeholder="Phone Number" required>
-    <input type="number" id="quantity" placeholder="No. of Tickets" min="1" value="1" required>
-    <button type="submit">Pay with Razorpay</button>
+  <form action="https://test.payu.in/_payment" method="post">
+    <h2>QRPass PayU Test Mode</h2>
+    <!-- Static Required Fields -->
+    <input type="hidden" name="key" value="upOU9x">
+    <input type="hidden" name="txnid" value="qrpass_txn123456">
+    <input type="hidden" name="productinfo" value="QRPass Tickets">
+    <input type="hidden" name="surl" value="https://qrpass.in/success">
+    <input type="hidden" name="furl" value="https://qrpass.in/failure">
+    <input type="hidden" name="hash" value="c3a6e71bc4004e8658f804660f766780b0ab04cc76b6837d011b3460b2c9f1c91563faf8b45fa46a0ba8169e75024d6fdc642c58791a77ecbd66c36c5898969c">
+
+    <!-- Dynamic Fields -->
+    <input type="text" name="firstname" placeholder="Name" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="tel" name="phone" placeholder="Phone Number" required>
+    <input type="number" name="amount" value="99" placeholder="Amount" required>
+
+    <button type="submit">Pay with PayU</button>
   </form>
-
-  <script>
-    const razorpayKey = 'rzp_test_7oY41Dzk4aWjox'; // ✅ Your test key
-
-    document.getElementById('razorpay-form').addEventListener('submit', function (e) {
-      e.preventDefault();
-
-      const name = document.getElementById('name').value;
-      const email = document.getElementById('email').value;
-      const phone = document.getElementById('phone').value;
-      const quantity = parseInt(document.getElementById('quantity').value);
-      const amount = quantity * 99 * 100; // in paise
-
-      const options = {
-        key: razorpayKey,
-        amount: amount,
-        currency: 'INR',
-        name: 'QRPass Ticket',
-        description: 'Test Ticket Purchase',
-        prefill: {
-          name: name,
-          email: email,
-          contact: phone
-        },
-        notes: {
-          tickets: quantity
-        },
-        theme: {
-          color: '#0f9d58'
-        },
-        handler: function (response) {
-          alert('✅ Payment Successful! Payment ID: ' + response.razorpay_payment_id);
-        }
-      };
-
-      const rzp = new Razorpay(options);
-      rzp.open();
-    });
-  </script>
 </body>
 </html>
