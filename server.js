@@ -1,56 +1,71 @@
-// server.js
-const express = require("express");
-const bodyParser = require("body-parser");
-const nodemailer = require("nodemailer");
-const { GoogleSpreadsheet } = require("google-spreadsheet");
-const { v4: uuidv4 } = require("uuid");
-const QRCode = require("qrcode");
-const fs = require("fs");
-const path = require("path");
-require("dotenv").config();
+const express = require('express');
+const bodyParser = require('body-parser');
+const nodemailer = require('nodemailer');
+const axios = require('axios');
+require('dotenv').config();
 
 const app = express();
+app.use(express.static('public'));
 app.use(bodyParser.json());
-app.use(express.static("public"));
 
-const SERVICE_ACCOUNT = JSON.parse(
-  Buffer.from(process.env.GOOGLE_SERVICE_KEY_BASE64, "base64").toString("utf8")
-);
+const PORT = process.env.PORT || 1000;
 
-const doc = new GoogleSpreadsheet("1ZnKm2cma8y9k6WMcT1YG3tqCjqq2VBILDEAaCBcyDtA");
-const GMAIL_USER = process.env.EMAIL_USER;
-const GMAIL_PASS = process.env.EMAIL_PASS;
+app.post('/register', async (req, res) => {
+  const { name, email, phone, quantity } = req.body;
 
-const transporter = nodemailer.createTransport({
-  service: "Gmail",
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_PASS,
-  },
-});
-
-app.post("/register", async (req, res) => {
   try {
-    const { name, email, phone, quantity } = req.body;
-    const orderId = uuidv4();
+    // Send email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS
+      }
+    });
 
-    await doc.useServiceAccountAuth(SERVICE_ACCOUNT);
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
-    await sheet.addRow({ Name: name, Email: email, Phone: phone, Quantity: quantity, OrderID: orderId });
+    await transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: email,
+      subject: 'QRPass Ticket Confirmation',
+      text: `Thanks ${name}, your registration is confirmed.`
+    });
 
-    const ticketData = `Name: ${name}\nEmail: ${email}\nPhone: ${phone}\nQuantity: ${quantity}\nOrderID: ${orderId}`;
-    const qrImage = await QRCode.toDataURL(ticketData);
-    const htmlBody = `<h2>Thanks for registering</h2><p>${ticketData.replace(/\n/g, "<br>")}</p><img src='${qrImage}' width='200'/>`;
+    // Cashfree Payment Session
+    const response = await axios.post(
+      'https://sandbox.cashfree.com/pg/orders',
+      {
+        customer_details: {
+          customer_id: phone,
+          customer_email: email,
+          customer_phone: phone
+        },
+        order_amount: Number(quantity) * 99,
+        order_currency: 'INR'
+      },
+      {
+        headers: {
+          accept: 'application/json',
+          'x-api-version': '2022-09-01',
+          'content-type': 'application/json',
+          'x-client-id': process.env.CASHFREE_CLIENT_ID,
+          'x-client-secret': process.env.CASHFREE_CLIENT_SECRET
+        }
+      }
+    );
 
-    await transporter.sendMail({ from: GMAIL_USER, to: email, subject: "QRPass Ticket", html: htmlBody });
+    const sessionId = response.data.payment_session_id;
 
-    res.json({ success: true, message: "Registered and email sent!" });
+    return res.json({
+      success: true,
+      message: 'Registered and email sent',
+      paymentSessionId: sessionId
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Error occurred." });
+    return res.json({ success: false, message: 'Error occurred.' });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on ${PORT}`);
+});
