@@ -15,7 +15,7 @@ app.post('/register', async (req, res) => {
   const amount = Number(quantity) * 99;
 
   try {
-    // Email sending
+    // ✅ Send email confirmation
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -27,13 +27,11 @@ app.post('/register', async (req, res) => {
     await transporter.sendMail({
       from: process.env.GMAIL_USER,
       to: email,
-      subject: 'QRPass Ticket - Payment Pending',
-      text: `Hi ${name}, please complete your payment to confirm your ticket.`
+      subject: 'QRPass Ticket Registration',
+      text: `Hi ${name},\n\nThank you for registering. Please proceed to payment using the link you'll be redirected to.\n\n- QRPass Team`
     });
 
-    // Create dynamic payment link using LIVE Cashfree
-    const orderId = "QR" + Date.now();
-
+    // ✅ Create Cashfree Payment Link
     const response = await axios.post(
       'https://api.cashfree.com/pg/links',
       {
@@ -42,10 +40,10 @@ app.post('/register', async (req, res) => {
           customer_email: email,
           customer_phone: phone
         },
-        order_id: orderId,
-        order_amount: amount,
-        order_currency: "INR",
-        order_meta: {
+        link_id: "QR" + Date.now(),
+        link_amount: amount,
+        link_currency: "INR",
+        link_meta: {
           return_url: "https://qrpass.in/payment-success"
         }
       },
@@ -69,11 +67,11 @@ app.post('/register', async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("ERROR:", err.response?.data || err.message);
     return res.json({ success: false, message: "Error occurred." });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Server running on ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
